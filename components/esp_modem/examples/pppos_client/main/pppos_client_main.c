@@ -21,6 +21,8 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 
+#include "driver/gpio.h"
+
 
 #if defined(CONFIG_EXAMPLE_FLOW_CONTROL_NONE)
 #define EXAMPLE_FLOW_CONTROL ESP_MODEM_FLOW_CONTROL_NONE
@@ -57,6 +59,41 @@ if ((xEventGroupGetBits(event_group) & USB_DISCONNECTED_BIT) == USB_DISCONNECTED
 #else
 #define CHECK_USB_DISCONNECTION(event_group)
 #endif
+
+// GPIO config for powering the modem on
+#define GPIO_PWRKEY    ((gpio_num_t) 15)
+#define GPIO_MODEM_SUPPLY_EN ((gpio_num_t) 21)
+#define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_PWRKEY | 1ULL<<GPIO_MODEM_SUPPLY_EN)
+
+void config_gpio(void)
+{
+    gpio_config_t io_conf = {};                     //zero-initialize the config structure.
+
+    io_conf.intr_type = GPIO_INTR_DISABLE;          //disable interrupt
+    io_conf.mode = GPIO_MODE_OUTPUT;                //set as output mode
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;     //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;   //disable pull-down mode
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;       //disable pull-up mode
+
+    ESP_ERROR_CHECK(gpio_config(&io_conf));                          //configure GPIO with the given settings
+}
+
+void wakeup_modem(void)
+{
+    /* Power on the modem */
+    ESP_LOGI(TAG, "Modem supply power off");  // Ensure hard reset of GPS between system reboots
+    gpio_set_level(GPIO_MODEM_SUPPLY_EN, 1);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGI(TAG, "Modem supply power on");
+    gpio_set_level(GPIO_MODEM_SUPPLY_EN, 0);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    ESP_LOGI(TAG, "Press modem power button");
+    gpio_set_level(GPIO_PWRKEY, 1);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    gpio_set_level(GPIO_PWRKEY, 0);
+    vTaskDelay(pdMS_TO_TICKS(2000));
+}
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -161,6 +198,10 @@ void app_main(void)
 
     event_group = xEventGroupCreate();
 
+    // Supply power to the GSM module
+    config_gpio();
+    wakeup_modem();
+
     /* Configure the DTE */
 #if defined(CONFIG_EXAMPLE_SERIAL_CONFIG_UART)
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -208,11 +249,11 @@ void app_main(void)
 
 #elif defined(CONFIG_EXAMPLE_SERIAL_CONFIG_USB)
     while (1) {
-        ESP_LOGI(TAG, "Initializing esp_modem for the BG96 module...");
-        struct esp_modem_usb_term_config usb_config = ESP_MODEM_DEFAULT_USB_CONFIG(0x2C7C, 0x0296, 2); // VID, PID and interface num of BG96 modem
+        ESP_LOGI(TAG, "Initializing esp_modem for the SIM7070 module...");
+        struct esp_modem_usb_term_config usb_config = ESP_MODEM_DEFAULT_USB_CONFIG(0x1e0e, 0x9206, 2); // VID, PID and interface num of SIM7070 modem
         const esp_modem_dte_config_t dte_usb_config = ESP_MODEM_DTE_DEFAULT_USB_CONFIG(usb_config);
         ESP_LOGI(TAG, "Waiting for USB device connection...");
-        esp_modem_dce_t *dce = esp_modem_new_dev_usb(ESP_MODEM_DCE_BG96, &dte_usb_config, &dce_config, esp_netif);
+        esp_modem_dce_t *dce = esp_modem_new_dev_usb(ESP_MODEM_DCE_SIM7070, &dte_usb_config, &dce_config, esp_netif);
         assert(dce);
         esp_modem_set_error_cb(dce, usb_terminal_error_handler);
         vTaskDelay(pdMS_TO_TICKS(1000)); // Although the DTE should be ready after USB enumeration, sometimes it fails to respond without this delay
