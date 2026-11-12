@@ -141,6 +141,7 @@ typedef struct {
     const char                  *cert_common_name;
     esp_err_t (*crt_bundle_attach)(void *conf);
     esp_transport_handle_t      ext_transport;
+    esp_tls_proto_ver_t         tls_version;
 } websocket_config_storage_t;
 
 typedef enum {
@@ -690,6 +691,7 @@ static esp_err_t esp_websocket_client_create_transport(esp_websocket_client_hand
             ESP_LOGE(TAG, "crt_bundle_attach configured but not enabled in menuconfig: Please enable MBEDTLS_CERTIFICATE_BUNDLE option");
 #endif
         }
+        esp_transport_ssl_set_tls_version(ssl, client->config->tls_version);
         if (client->config->skip_cert_common_name_check) {
             esp_transport_ssl_skip_common_name_check(ssl);
         }
@@ -888,6 +890,7 @@ esp_websocket_client_handle_t esp_websocket_client_init(const esp_websocket_clie
     client->config->cert_common_name = config->cert_common_name;
     client->config->crt_bundle_attach = config->crt_bundle_attach;
     client->config->ext_transport = config->ext_transport;
+    client->config->tls_version = config->tls_version;
 
     if (config->uri) {
         if (esp_websocket_client_set_uri(client, config->uri) != ESP_OK) {

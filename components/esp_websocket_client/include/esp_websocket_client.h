@@ -17,6 +17,7 @@
 #include "esp_idf_version.h"
 #include <sys/socket.h>
 #include "esp_transport_ws.h"
+#include "esp_tls.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -160,6 +161,7 @@ typedef struct {
     size_t                      ping_interval_sec;          /*!< Websocket ping interval, defaults to 10 seconds if not set */
     struct ifreq                *if_name;                   /*!< The name of interface for data to go through. Use the default interface without setting */
     esp_transport_handle_t      ext_transport;              /*!< External WebSocket tcp_transport handle to the client; or if null, the client will create its own transport handle. */
+    esp_tls_proto_ver_t         tls_version;                /*!< TLS version for wss (default: ESP_TLS_VER_ANY, no preference) */
 } esp_websocket_client_config_t;
 
 /**
